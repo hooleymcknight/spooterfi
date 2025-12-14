@@ -4,7 +4,6 @@
   "version": "1.0.0",
   "description": "Spooterfi app for videovomit",
   "main": ".webpack/main",
-  "icon": "./src/assets/icons/win/favicon.ico",
   "scripts": {
     "start": "electron-forge start",
     "package": "electron-forge package",

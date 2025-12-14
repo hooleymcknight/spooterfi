@@ -77,9 +77,10 @@ const createWindow = () => {
     }
 
     mainWindow = new BrowserWindow({
-        show: false,
+        // show: false,
         width,
         height,
+        // iconPath,
         x,
         y,
         webPreferences: {

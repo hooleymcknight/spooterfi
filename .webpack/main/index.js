@@ -1285,9 +1285,10 @@ const createWindow = () => {
     y = 100;
   }
   mainWindow = new BrowserWindow({
-    show: false,
+    // show: false,
     width,
     height,
+    // iconPath,
     x,
     y,
     webPreferences: {
