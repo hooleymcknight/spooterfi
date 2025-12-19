@@ -3,6 +3,24 @@ const fs = require('fs');
 const artistFile = 'Snip_Artist.txt';
 const titleFile = 'Snip_Track.txt';
 
+const clearFileContent = async (fileDirectory) => {
+    await fs.promises.writeFile(`${fileDirectory}${titleFile}`, '', { flag: 'w' }, (err) => {
+        if (err) {
+            console.error(err);
+            return 'baddir';
+        }
+    });
+
+    await fs.promises.writeFile(`${fileDirectory}${artistFile}`, '', { flag: 'w' }, (err) => {
+        if (err) {
+            console.error(err);
+            return 'baddir';
+        }
+    });
+
+    return 'success';
+}
+
 const updateFileContent = async (fileDirectory, songInfo) => {
     let songTitle = songInfo.isPlaying ? songInfo.title : '';
     let songArtist = songInfo.isPlaying ? songInfo.artist : '';
@@ -74,4 +92,4 @@ const getNowPlaying = async (accessToken, fileDirectory) => {
     return returnValue;
 };
 
-module.exports = { getNowPlaying }
+module.exports = { getNowPlaying, clearFileContent }

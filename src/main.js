@@ -2,7 +2,7 @@ const { app, BrowserWindow, ipcMain, Menu, Tray, ipcRenderer, Notification, nati
 const fs = require('fs').promises;
 const path = require('path');
 const { exec } = require('child_process');
-const { getNowPlaying } = require('./tools/get-nowplaying.js');
+const { getNowPlaying, clearFileContent } = require('./tools/get-nowplaying.js');
 const { template, store, base64icon } = require('./helpers/helpers.js');
 const { connectSpotifyApp } = require('./tools/connect-spotify/app.js');
 
@@ -49,6 +49,7 @@ const contextMenu = Menu.buildFromTemplate([
     { type: 'separator' }, // Adds a horizontal line
     { label: 'Quit', click: () => {
         requestQuit = true;
+        clearFileContent(store.get('settings').fileDirectory);
         app.quit(); // Quits the entire application
     }}
 ]);
@@ -162,7 +163,7 @@ const triggerGetNPLoop = async () => {
         setInterval(async () => {
             subsequentAttempts = await getNowPlaying(store.get('settings').accessToken, store.get('settings').fileDirectory);
             handleAttempts(subsequentAttempts);
-        }, 60000); // ping once a minute
+        }, 5000); // ping every 5 seconds
     });
 }
 

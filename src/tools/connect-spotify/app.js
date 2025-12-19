@@ -58,6 +58,10 @@ const connectSpotifyApp = () => {
             <div id="oauth">
             </div>
             <button class="btn btn-default" id="obtain-new-token">Obtain new token using the refresh token</button>
+            <p>
+                <b>NOTE:</b>  It is recommended to click "Obtain new token" button every time before copying a new access token. <br/>
+                After copying the access token, paste it into the settings of your Spooterfi app.
+            </p>
         </div>
         </div>
 
