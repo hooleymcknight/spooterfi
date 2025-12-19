@@ -35,7 +35,7 @@ const getNowPlaying = async (accessToken, fileDirectory) => {
     })
     .then(async (data) => {
         if (data.status == '204') {
-            // console.log('no content');
+            console.log('no content');
             return;
         }
 
@@ -43,7 +43,7 @@ const getNowPlaying = async (accessToken, fileDirectory) => {
         if (song.error) {
             if (song.error.message.includes('access token expired') || song.error.message.includes('Permissions missing')) {
                 // expired handler
-                // console.log('atexp')
+                console.log('atexp')
                 return 'atexp';
             }
             else {
