@@ -13,6 +13,9 @@ const SpooterfiApp = () => {
     });
 
     const saveSettings = (e) => {
+        e.target.disabled = true;
+        e.target.textContent = 'Saving...';
+
         let newSettings = settings || blankSettings;
         newSettings.accessToken = document.querySelector('#access-token').value;
         
@@ -23,6 +26,14 @@ const SpooterfiApp = () => {
         newSettings.fileDirectory = fileDir;
         document.querySelector('#file-directory').value = fileDir;
         ipcRenderer.send('save-settings', newSettings);
+
+        setTimeout(() => {
+            e.target.textContent = 'Saved!';
+            setTimeout(() => {
+                e.target.disabled = false;
+                e.target.textContent = 'Save';
+            }, 2000);
+        }, 2000);
     }
 
     React.useEffect(() => {
@@ -37,22 +48,24 @@ const SpooterfiApp = () => {
             <main className="spooterfi-app" data-state={state}>
                 <h1>Settings</h1>
                 <table>
-                    <tr>
-                        <td>
-                            <label>Access token:</label>
-                        </td>
-                        <td>
-                            <input id="access-token" type="text" defaultValue={settings?.accessToken || ''} />
-                        </td>
-                    </tr>
-                    <tr>
-                        <td>
-                            <label>Location of .txt files:</label>
-                        </td>
-                        <td>
-                            <input id="file-directory" type="text" defaultValue={settings?.fileDirectory || ''} />
-                        </td>
-                    </tr>
+                    <tbody>
+                        <tr>
+                            <td>
+                                <label>Access token:</label>
+                            </td>
+                            <td>
+                                <input id="access-token" type="text" defaultValue={settings?.accessToken || ''} />
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <label>Location of .txt files:</label>
+                            </td>
+                            <td>
+                                <input id="file-directory" type="text" defaultValue={settings?.fileDirectory || ''} />
+                            </td>
+                        </tr>
+                    </tbody>
                 </table>
                 <button onClick={(e) => {saveSettings(e)}}>Save</button>
             </main>
