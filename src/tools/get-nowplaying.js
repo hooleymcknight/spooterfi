@@ -44,7 +44,7 @@ const updateFileContent = async (fileDirectory, songInfo) => {
 
 const getNowPlaying = async (accessToken, fileDirectory) => {
     const NOW_PLAYING_URL = `https://api.spotify.com/v1/me/player/currently-playing`;
-    // console.log('get np')
+    // console.log('get np');
 
     let returnValue = await fetch(NOW_PLAYING_URL, {
         headers: {
@@ -54,12 +54,12 @@ const getNowPlaying = async (accessToken, fileDirectory) => {
     .then(async (data) => {
         if (data.status == '204') {
             console.log('no content');
-            return;
+            return 'no-content';
         }
 
         const song = await data.json();
         if (song.error) {
-            if (song.error.message.includes('access token expired') || song.error.message.includes('Permissions missing')) {
+            if (song.error.message.includes('access token expired') || song.error.message.includes('Permissions missing') || song.error.message.includes('Invalid access token')) {
                 // expired handler
                 console.log('atexp')
                 return 'atexp';

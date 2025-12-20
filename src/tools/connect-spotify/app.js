@@ -14,6 +14,28 @@ var cors = require('cors');
 var querystring = require('querystring');
 var cookieParser = require('cookie-parser');
 const { store } = require('../../helpers/helpers.js');
+const net = require('net');
+
+const checkPortStatus = (port) => {
+    return new Promise((resolve, reject) => {
+        const server = net.createServer();
+
+        server.once('error', (err) => {
+            if (err.code === 'EADDRINUSE') {
+                resolve(false); // Port is in use
+            } else {
+                reject(err);
+            }
+        });
+
+        server.once('listening', () => {
+            server.close();
+            resolve(true); // Port is free
+        });
+
+        server.listen(port, '127.0.0.1'); // Bind to localhost for an accurate check
+    });
+}
 
 const connectSpotifyApp = () => {
 
@@ -58,7 +80,7 @@ const connectSpotifyApp = () => {
             <div id="oauth">
             </div>
             <button class="btn btn-default" id="obtain-new-token">Obtain new token using the refresh token</button>
-            <p>
+            <p style="margin-top: 20px;">
                 <b>NOTE:</b>  It is recommended to click "Obtain new token" button every time before copying a new access token. <br/>
                 After copying the access token, paste it into the settings of your Spooterfi app.
             </p>
@@ -118,13 +140,13 @@ const connectSpotifyApp = () => {
              * @return Object
              */
             function getHashParams() {
-            var hashParams = {};
-            var e, r = /([^&;=]+)=?([^&;]*)/g,
-                q = window.location.hash.substring(1);
-            while ( e = r.exec(q)) {
-                hashParams[e[1]] = decodeURIComponent(e[2]);
-            }
-            return hashParams;
+                var hashParams = {};
+                var e, r = /([^&;=]+)=?([^&;]*)/g,
+                    q = window.location.hash.substring(1);
+                while ( e = r.exec(q)) {
+                    hashParams[e[1]] = decodeURIComponent(e[2]);
+                }
+                return hashParams;
             }
 
             var userProfileSource = document.getElementById('user-profile-template').innerHTML,
@@ -142,48 +164,48 @@ const connectSpotifyApp = () => {
                 error = params.error;
 
             if (error) {
-            alert('There was an error during the authentication');
-            window.location.href = 'http://localhost:8888';
+                alert('There was an error during the authentication');
+                window.location.href = 'http://localhost:8888';
             } else {
-            if (access_token) {
-                // render oauth info
-                oauthPlaceholder.innerHTML = oauthTemplate({
-                access_token: access_token,
-                refresh_token: refresh_token
-                });
+                if (access_token) {
+                    // render oauth info
+                    oauthPlaceholder.innerHTML = oauthTemplate({
+                        access_token: access_token,
+                        refresh_token: refresh_token
+                    });
 
-                $.ajax({
-                    url: 'https://api.spotify.com/v1/me',
-                    headers: {
-                    'Authorization': 'Bearer ' + access_token
-                    },
-                    success: function(response) {
-                    userProfilePlaceholder.innerHTML = userProfileTemplate(response);
+                    $.ajax({
+                        url: 'https://api.spotify.com/v1/me',
+                        headers: {
+                            'Authorization': 'Bearer ' + access_token
+                        },
+                        success: function(response) {
+                            userProfilePlaceholder.innerHTML = userProfileTemplate(response);
 
-                    $('#login').hide();
-                    $('#loggedin').show();
-                    }
-                });
-            } else {
-                // render initial screen
-                $('#login').show();
-                $('#loggedin').hide();
-            }
-
-            document.getElementById('obtain-new-token').addEventListener('click', function() {
-                $.ajax({
-                url: '/refresh_token',
-                data: {
-                    'refresh_token': refresh_token
+                            $('#login').hide();
+                            $('#loggedin').show();
+                        }
+                    });
+                } else {
+                    // render initial screen
+                    $('#login').show();
+                    $('#loggedin').hide();
                 }
-                }).done(function(data) {
-                access_token = data.access_token;
-                oauthPlaceholder.innerHTML = oauthTemplate({
-                    access_token: access_token,
-                    refresh_token: refresh_token
-                });
-                });
-            }, false);
+
+                document.getElementById('obtain-new-token').addEventListener('click', function() {
+                    $.ajax({
+                        url: '/refresh_token',
+                        data: {
+                            'refresh_token': refresh_token
+                        }
+                    }).done(function(data) {
+                        access_token = data.access_token;
+                        oauthPlaceholder.innerHTML = oauthTemplate({
+                            access_token: access_token,
+                            refresh_token: refresh_token
+                        });
+                    });
+                }, false);
             }
         })();
         </script>
@@ -193,7 +215,7 @@ const connectSpotifyApp = () => {
 
     var client_id = 'efd5b392b3b24d8d9427875e24eeda69'; // your clientId
     var client_secret = '4ae3a95ab3794858910a6efcb541b2ce'; // Your secret
-    var redirect_uri = 'http://127.0.0.1:8888/callback'; // Your redirect uri
+    let redirect_uri = `http://127.0.0.1:8888/callback`; // Your redirect uri
 
 
     const generateRandomString = (length) => {
@@ -212,6 +234,7 @@ const connectSpotifyApp = () => {
         .use(cors());
 
     app.get('/', (req, res) => {
+        // let port = req.headers.host.split(':')[1]; // e.g., "localhost:3000"
         res.send(html);
     });
 
@@ -266,33 +289,41 @@ const connectSpotifyApp = () => {
             };
 
             request.post(authOptions, function(error, response, body) {
-            if (!error && response.statusCode === 200) {
+                if (!error && response.statusCode === 200) {
 
-                var access_token = body.access_token,
-                    refresh_token = body.refresh_token;
+                    var access_token = body.access_token,
+                        refresh_token = body.refresh_token;
 
-                var options = {
-                    url: 'https://api.spotify.com/v1/me',
-                    headers: { 'Authorization': 'Bearer ' + access_token },
-                    json: true
-                };
+                    var options = {
+                        url: 'https://api.spotify.com/v1/me',
+                        headers: { 'Authorization': 'Bearer ' + access_token },
+                        json: true
+                    };
 
-                // use the access token to access the Spotify Web API
-                request.get(options, function(error, response, body) {
-                    console.log(body);
-                });
+                    // use the access token to access the Spotify Web API
+                    request.get(options, function(error, response, body) {
+                        console.log(body);
+                    });
 
-                // we can also pass the token to the browser to make requests from there
-                res.redirect('/#' +
-                    querystring.stringify({
-                        access_token: access_token,
-                        refresh_token: refresh_token
-                    }));
+                    let newSettings = store.get('settings');
+                    newSettings.accessToken = access_token;
+                    newSettings.refreshToken = refresh_token;
+                    store.set('settings', newSettings);
+
+                    // we can also pass the token to the browser to make requests from there
+                    res.redirect('/#' +
+                        querystring.stringify({
+                            access_token: access_token,
+                            refresh_token: refresh_token
+                        })
+                    );
+                    // res.send('<script>window.close();</script>');
                 } else {
                     res.redirect('/#' +
-                    querystring.stringify({
-                        error: 'invalid_token'
-                    }));
+                        querystring.stringify({
+                            error: 'invalid_token'
+                        })
+                    );
                 }
             });
         }
@@ -326,9 +357,20 @@ const connectSpotifyApp = () => {
         });
     });
 
-    app.listen(8888, () => {
-        console.log('Listening on 8888');
-    });
+    const appPort = 8888;
+    checkPortStatus(appPort)
+        .then((isFree) => {
+            if (isFree) {
+                console.log(`Port ${appPort} is free, proceeding to start app.`);
+                app.listen(8888, () => {
+                    console.log('Listening on port: 8888');
+                });
+            } else {
+                console.log(`Port ${appPort} is already in use.`);
+            }
+        }).catch((err) => {
+            console.error('Error checking port:', err);
+        });
 }
 
 module.exports = { connectSpotifyApp }

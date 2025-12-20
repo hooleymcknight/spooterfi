@@ -1,8 +1,7 @@
 import * as React from 'react';
-
 const path = window.require('path');
 const ipcRenderer = window.require('electron').ipcRenderer;
-const blankSettings = { accessToken: '', fileDirectory: '' };
+const blankSettings = { accessToken: '', refreshToken: '', fileDirectory: '' };
 
 const SpooterfiApp = () => {
     const [state, setState] = React.useState('settings');
@@ -18,13 +17,17 @@ const SpooterfiApp = () => {
 
         let newSettings = settings || blankSettings;
         newSettings.accessToken = document.querySelector('#access-token').value;
+        newSettings.refreshToken = document.querySelector('#refresh-token').value;
         
         let fileDir = document.querySelector('#file-directory').value;
-        fileDir = fileDir.includes('/') ? fileDir.replace(/\//g, '\\') : fileDir;
-        fileDir = fileDir.trim().charAt(fileDir.length - 1) != '\\' ? `${fileDir.trim()}\\` : fileDir.trim();        
+        if (fileDir.length) {
+            fileDir = fileDir.includes('/') ? fileDir.replace(/\//g, '\\') : fileDir;
+            fileDir = fileDir.trim().charAt(fileDir.length - 1) != '\\' ? `${fileDir.trim()}\\` : fileDir.trim();        
 
-        newSettings.fileDirectory = fileDir;
-        document.querySelector('#file-directory').value = fileDir;
+            newSettings.fileDirectory = fileDir;
+            document.querySelector('#file-directory').value = fileDir;
+        }
+
         ipcRenderer.send('save-settings', newSettings);
 
         setTimeout(() => {
@@ -32,7 +35,7 @@ const SpooterfiApp = () => {
             setTimeout(() => {
                 e.target.disabled = false;
                 e.target.textContent = 'Save';
-            }, 2000);
+            }, 1000);
         }, 2000);
     }
 
@@ -55,6 +58,14 @@ const SpooterfiApp = () => {
                             </td>
                             <td>
                                 <input id="access-token" type="text" defaultValue={settings?.accessToken || ''} />
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <label>Refresh token:</label>
+                            </td>
+                            <td>
+                                <input id="refresh-token" type="text" defaultValue={settings?.refreshToken || ''} />
                             </td>
                         </tr>
                         <tr>

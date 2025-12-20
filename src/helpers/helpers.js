@@ -7,6 +7,7 @@ const store = new Store({
         windowBounds: { width: 800, height: 600 },
         settings: {
             accessToken: '',
+            refreshToken: '',
             fileDirectory: '',
         },
         state: null,

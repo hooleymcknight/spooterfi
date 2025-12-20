@@ -3,18 +3,14 @@ const fs = require('fs').promises;
 const path = require('path');
 const { exec } = require('child_process');
 const { getNowPlaying, clearFileContent } = require('./tools/get-nowplaying.js');
+const { getNewAccessToken } = require('./tools/connect-spotify.js');
 const { template, store, base64icon } = require('./helpers/helpers.js');
 const { connectSpotifyApp } = require('./tools/connect-spotify/app.js');
 
 let tray = null;
 let requestQuit = false;
 // const icon = nativeImage.createFromDataURL(base64icon);
-
-exec('kill-port 8888', (error, stdout, stderr) => {
-    if (error) console.error(`exec error: ${error}`);
-    if (stderr) console.error(`stderr: ${stderr}`);
-});
-
+let notifFired = false;
 let mainWindow;
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
@@ -37,11 +33,11 @@ const contextMenu = Menu.buildFromTemplate([
     }},
     { type: 'separator' },
     { label: 'Connect Spotify', click: () => {
-        exec('kill-port 8888', (error, stdout, stderr) => {
+        exec(`start http://localhost:8888`, (error, stdout, stderr) => {
             if (error) console.error(`exec error: ${error}`);
             if (stderr) console.error(`stderr: ${stderr}`);
         });
-        connectSpotify();
+        connectSpotifyApp();
     }},
     { label: 'Settings', click: () => {
         mainWindow.show();
@@ -156,52 +152,63 @@ ipcMain.on('save-settings', (event, data) => {
 
 // I think I need to add some catch error handling in here
 const triggerGetNPLoop = async () => {
+    if (!store.get('settings').fileDirectory.length) {
+        console.error('no file directory set.');
+    }
+
     const firstAttempt = await getNowPlaying(store.get('settings').accessToken, store.get('settings').fileDirectory);
 
     handleAttempts(firstAttempt, () => {
         let subsequentAttempts;
-        setInterval(async () => {
+        const saLoop = setInterval(async () => {
             subsequentAttempts = await getNowPlaying(store.get('settings').accessToken, store.get('settings').fileDirectory);
-            handleAttempts(subsequentAttempts);
+            let continueLoop = handleAttempts(subsequentAttempts);
+            if (!continueLoop) clearInterval(saLoop);
         }, 5000); // ping every 5 seconds
     });
 }
 
-const connectSpotify = (event) => {
-    // Execute the Node command using child_process.exec
-    exec('kill-port 8888', (error, stdout, stderr) => {
-        if (error) console.error(`exec error: ${error}`);
-        if (stderr) console.error(`stderr: ${stderr}`);
-
-        exec('start http://localhost:8888', (error, stdout, stderr) => {
-            if (error) console.error(`exec error: ${error}`);
-            if (stderr) console.error(`stderr: ${stderr}`);
-
-            setTimeout(() => {
-                connectSpotifyApp();
-            }, 1000);
-        });
-    });
-}
-
 const handleAttempts = (attempt, callback) => {
+    // the callback will not run if you get an errored first attempt.
     if (attempt == 'atexp') {
         // access token expired:
-        initNotification('Access Token Expired', 'Right-click, Connect Spotify to get a new access token.');
+        let refreshToken = store.get('settings').refreshToken;
+        if (!refreshToken) {
+            initNotification('Need Refresh Token', 'Right-click, Connect Spotify to get a new refresh token.');
+            return false;
+        }
+
+        getNewAccessToken(refreshToken)
+            .then((token) => {
+                let newSettings = store.get('settings');
+                newSettings.accessToken = token;
+                store.set('settings', newSettings);
+                return true;
+            })
+            .catch((err) => {
+                console.error(err);
+                return false;
+            });
     }
     else if (attempt === 'baddir') {
         initNotification('Incorrect File Directory', 'Please check the path in your settings.');
+        return false;
     }
     else if (attempt === 'err') {
         // handle an error, do not proceed.
-        initNotification('Error!', 'An unknown error has occurred. Please contact the developer.')
+        initNotification('Error!', 'An unknown error has occurred. Please contact the developer.');
+        return false;
     }
     else if (callback) {
         callback();
     }
+    return true;
 }
 
 const initNotification = (heading, message) => {
+    if (notifFired) return;
+    notifFired = true;
+
     const notifIcon = nativeImage.createFromDataURL(base64icon);
     if (Notification.isSupported()) {
         const fireAlert = new Notification({
@@ -221,6 +228,11 @@ const initNotification = (heading, message) => {
         // Fallback for systems that don't support native notifications
         console.log('Native notifications not supported');
     }
+
+    setTimeout(() => {
+        console.log('notif fired false')
+        notifFired = false;
+    }, 30000);
 }
 
 // module.exports = { };
