@@ -7,18 +7,18 @@ const clearFileContent = async (fileDirectory) => {
     await fs.promises.writeFile(`${fileDirectory}${titleFile}`, '', { flag: 'w' }, (err) => {
         if (err) {
             console.error(err);
-            return 'baddir';
+            return { type: 'baddir', message: 'Error with song title directory. Please check settings.' };
         }
     });
 
     await fs.promises.writeFile(`${fileDirectory}${artistFile}`, '', { flag: 'w' }, (err) => {
         if (err) {
             console.error(err);
-            return 'baddir';
+            return { type: 'baddir', message: 'Error with song artist directory. Please check settings.' };
         }
     });
 
-    return 'success';
+    return { type: 'success' };
 }
 
 const updateFileContent = async (fileDirectory, songInfo) => {
@@ -28,18 +28,18 @@ const updateFileContent = async (fileDirectory, songInfo) => {
     await fs.promises.writeFile(`${fileDirectory}${titleFile}`, songTitle, { flag: 'w' }, (err) => {
         if (err) {
             console.error(err);
-            return 'baddir';
+            return { type: 'baddir', message: 'Error with song title directory. Please check settings.' };
         }
     });
 
     await fs.promises.writeFile(`${fileDirectory}${artistFile}`, songArtist, { flag: 'w' }, (err) => {
         if (err) {
             console.error(err);
-            return 'baddir';
+            return { type: 'baddir', message: 'Error with song artist directory. Please check settings.' };
         }
     });
 
-    return 'success';
+    return { type: 'success' };
 }
 
 const getNowPlaying = async (accessToken, fileDirectory) => {
@@ -53,41 +53,44 @@ const getNowPlaying = async (accessToken, fileDirectory) => {
     })
     .then(async (data) => {
         if (data.status == '204') {
-            console.log('no content');
-            return 'no-content';
+            // console.log('no content');
+            return { type: 'no-content' };
         }
 
         const song = await data.json();
         if (song.error) {
             if (song.error.message.includes('access token expired') || song.error.message.includes('Permissions missing') || song.error.message.includes('Invalid access token')) {
                 // expired handler
-                console.log('atexp')
-                return 'atexp';
+                // console.log('atexp')
+                return { type: 'atexp', message: song.error.message };
             }
             else {
-                console.error('Another error occurred:', song.error.message);
-                return 'err';
+                // console.log('Another error occurred:', song.error.message);
+                return { type: 'err', message: song.error.message };
             }
         }
     
         // Process the data
-        const title = song.item.name;
-        const artist = song.item.artists.map(a => a.name).join(', ');
+        const title = song.item?.name || '';
+        const artist = song.item?.artists.map(a => a.name).join(', ') || '';
         // const albumImageUrl = song.item.album.images[0].url;
-        const isPlaying = song.is_playing;
+        const isPlaying = song.is_playing || false;
         
 
         const songInfo = { title, artist, isPlaying };
         let writeResult = await updateFileContent(fileDirectory, songInfo);
         // console.log('write results', writeResult)
-        return writeResult;
+        if (writeResult.type == 'baddir') {
+            return { type: 'baddir', message: err.message };
+        }
+        return { type: 'success' };
     })
     .catch((err) => {
         console.error(err);
         if(err.message.includes('no such file or directory')) {
-            return 'baddir';
+            return { type: 'baddir', message: err.message };
         }
-        return 'err';
+        return { type: 'err', message: err.message };
     });
     return returnValue;
 };

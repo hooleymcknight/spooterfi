@@ -6,12 +6,15 @@ const { getNowPlaying, clearFileContent } = require('./tools/get-nowplaying.js')
 const { getNewAccessToken } = require('./tools/connect-spotify.js');
 const { template, store, base64icon } = require('./helpers/helpers.js');
 const { connectSpotifyApp } = require('./tools/connect-spotify/app.js');
+const version = require('../package.json').version;
 
 let tray = null;
 let requestQuit = false;
 // const icon = nativeImage.createFromDataURL(base64icon);
 let notifFired = false;
 let mainWindow;
+
+const failedAttemptCodes = ['atexp', 'baddir', 'err'];
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (require('electron-squirrel-startup')) {
@@ -21,6 +24,14 @@ if (require('electron-squirrel-startup')) {
 const menu = Menu.buildFromTemplate(template);
 Menu.setApplicationMenu(menu);
 
+const initConnect = () => {
+    exec(`start http://localhost:8888`, (error, stdout, stderr) => {
+        if (error) console.error(`exec error: ${error}`);
+        if (stderr) console.error(`stderr: ${stderr}`);
+    });
+    connectSpotifyApp();
+}
+
 const contextMenu = Menu.buildFromTemplate([
     // { label: 'Show App', click: () => {
     //     mainWindow.show(); // Show the window when this menu item is clicked
@@ -28,21 +39,22 @@ const contextMenu = Menu.buildFromTemplate([
     // { label: 'Hide App', click: () => {
     //     mainWindow.hide(); // Hide the window
     // }},
-    { label: 'Refresh Now Playing', click: () => {
-        getNowPlaying(store.get('settings').accessToken, store.get('settings').fileDirectory);
+    { label: 'Refresh Now Playing', click: async () => {
+        const refreshAttempt = await getNowPlaying(store.get('settings').accessToken, store.get('settings').fileDirectory);
+        if (failedAttemptCodes.includes(refreshAttempt.type)) {
+            initNotification('Error!', refreshAttempt.type);
+        }
     }},
     { type: 'separator' },
     { label: 'Connect Spotify', click: () => {
-        exec(`start http://localhost:8888`, (error, stdout, stderr) => {
-            if (error) console.error(`exec error: ${error}`);
-            if (stderr) console.error(`stderr: ${stderr}`);
-        });
-        connectSpotifyApp();
+        initConnect();
     }},
     { label: 'Settings', click: () => {
         mainWindow.show();
     }},
     { type: 'separator' }, // Adds a horizontal line
+    { label: `v${version}`, enabled: false },
+    { type: 'separator' },
     { label: 'Quit', click: () => {
         requestQuit = true;
         clearFileContent(store.get('settings').fileDirectory);
@@ -170,7 +182,7 @@ const triggerGetNPLoop = async () => {
 
 const handleAttempts = (attempt, callback) => {
     // the callback will not run if you get an errored first attempt.
-    if (attempt == 'atexp') {
+    if (attempt.type == 'atexp') {
         // access token expired:
         let refreshToken = store.get('settings').refreshToken;
         if (!refreshToken) {
@@ -180,23 +192,35 @@ const handleAttempts = (attempt, callback) => {
 
         getNewAccessToken(refreshToken)
             .then((token) => {
+                if (token.error) {
+                    initNotification('Error!', token.error_description);
+                    if (token.error_description.includes('Invalid refresh token')) {
+                        initConnect();
+                    }
+                    return;
+                }
+
                 let newSettings = store.get('settings');
                 newSettings.accessToken = token;
                 store.set('settings', newSettings);
-                return true;
+                if (callback) {
+                    callback();
+                }
+                // return true;
             })
             .catch((err) => {
-                console.error(err);
+                console.log(err);
                 return false;
             });
     }
-    else if (attempt === 'baddir') {
+    else if (attempt.type === 'baddir') {
         initNotification('Incorrect File Directory', 'Please check the path in your settings.');
         return false;
     }
-    else if (attempt === 'err') {
+    else if (attempt.type === 'err') {
         // handle an error, do not proceed.
-        initNotification('Error!', 'An unknown error has occurred. Please contact the developer.');
+        // initNotification('Error!', 'An unknown error has occurred. Please contact the developer.');
+        initNotification('Error!', String(attempt.message));
         return false;
     }
     else if (callback) {

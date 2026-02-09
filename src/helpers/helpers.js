@@ -1,5 +1,6 @@
 const fs = require('fs').promises;
 const Store = require('./store.js');
+const version = require('../../package.json').version;
 
 const store = new Store({
     configName: 'user-preferences',
@@ -35,7 +36,7 @@ const template = [
                 }
             },
             {
-                label: 'v1.0.0',
+                label: `v${version}`,
             }
         ]
     }

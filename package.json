@@ -1,7 +1,7 @@
 {
   "name": "spooterfi",
   "productName": "Spooterfi",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Spooterfi app for videovomit",
   "main": ".webpack/main",
   "scripts": {

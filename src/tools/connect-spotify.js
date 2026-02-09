@@ -52,15 +52,17 @@ const getNewAccessToken = async (refreshToken) => {
             client_id: client_id
         })
     })
-    .then((body) => {
-        console.log('body')
-        return body.json();
+    .then((response) => {
+        return response.json();
     })
     .then((result) => {
+        if (result.error) {
+            return result;
+        }
         return result.access_token;
     })
     .catch((err) => {
-        console.error(err);
+        console.log(err);
     });
     return accessToken;
 }
