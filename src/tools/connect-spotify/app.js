@@ -15,6 +15,10 @@ var querystring = require('querystring');
 var cookieParser = require('cookie-parser');
 const { store } = require('../../helpers/helpers.js');
 const net = require('net');
+const appData = require('../../config.json');
+
+const clientId = appData.clientId;
+const clientSecret = appData.clientSecret;
 
 const checkPortStatus = (port) => {
     return new Promise((resolve, reject) => {
@@ -213,9 +217,7 @@ const connectSpotifyApp = () => {
     </html>
     `;
 
-    var client_id = 'efd5b392b3b24d8d9427875e24eeda69'; // your clientId
-    var client_secret = '4ae3a95ab3794858910a6efcb541b2ce'; // Your secret
-    let redirect_uri = `http://127.0.0.1:8888/callback`; // Your redirect uri
+    const redirectUri = `http://localhost:8888/`; // Your redirect uri
 
 
     const generateRandomString = (length) => {
@@ -249,9 +251,9 @@ const connectSpotifyApp = () => {
         res.redirect('https://accounts.spotify.com/authorize?' +
             querystring.stringify({
                 response_type: 'code',
-                client_id: client_id,
+                client_id: clientId,
                 scope: scope,
-                redirect_uri: redirect_uri,
+                redirect_uri: redirectUri,
                 state: state
             })
         );
@@ -278,12 +280,12 @@ const connectSpotifyApp = () => {
                 url: 'https://accounts.spotify.com/api/token',
                 form: {
                     code: code,
-                    redirect_uri: redirect_uri,
+                    redirect_uri: redirectUri,
                     grant_type: 'authorization_code'
                 },
                 headers: {
                     'content-type': 'application/x-www-form-urlencoded',
-                    Authorization: 'Basic ' + (new Buffer.from(client_id + ':' + client_secret).toString('base64'))
+                    Authorization: 'Basic ' + (new Buffer.from(clientId + ':' + clientSecret).toString('base64'))
                 },
                 json: true
             };
@@ -336,7 +338,7 @@ const connectSpotifyApp = () => {
             url: 'https://accounts.spotify.com/api/token',
             headers: { 
                 'content-type': 'application/x-www-form-urlencoded',
-                'Authorization': 'Basic ' + (new Buffer.from(client_id + ':' + client_secret).toString('base64')) 
+                'Authorization': 'Basic ' + (new Buffer.from(clientId + ':' + clientSecret).toString('base64')) 
             },
             form: {
                 grant_type: 'refresh_token',

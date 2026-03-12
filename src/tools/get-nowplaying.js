@@ -44,7 +44,6 @@ const updateFileContent = async (fileDirectory, songInfo) => {
 
 const getNowPlaying = async (accessToken, fileDirectory) => {
     const NOW_PLAYING_URL = `https://api.spotify.com/v1/me/player/currently-playing`;
-    // console.log('get np');
 
     let returnValue = await fetch(NOW_PLAYING_URL, {
         headers: {
@@ -53,8 +52,10 @@ const getNowPlaying = async (accessToken, fileDirectory) => {
     })
     .then(async (data) => {
         if (data.status == '204') {
-            // console.log('no content');
             return { type: 'no-content' };
+        }
+        if (data.status == '403') {
+            return { type: 'forbidden' };
         }
 
         const song = await data.json();
