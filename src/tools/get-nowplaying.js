@@ -1,7 +1,7 @@
 const fs = require('fs');
 
-const artistFile = 'Snip_Artist.txt';
-const titleFile = 'Snip_Track.txt';
+const artistFile = 'Spooterfi_Artist.txt';
+const titleFile = 'Spooterfi_Track.txt';
 
 const clearFileContent = async (fileDirectory) => {
     await fs.promises.writeFile(`${fileDirectory}${titleFile}`, '', { flag: 'w' }, (err) => {

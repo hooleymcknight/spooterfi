@@ -217,8 +217,7 @@ const connectSpotifyApp = () => {
     </html>
     `;
 
-    const redirectUri = `http://localhost:8888/`; // Your redirect uri
-
+    const redirectUri = `http://127.0.0.1:8888/`; // Your redirect uri
 
     const generateRandomString = (length) => {
         return crypto
@@ -237,7 +236,19 @@ const connectSpotifyApp = () => {
 
     app.get('/', (req, res) => {
         // let port = req.headers.host.split(':')[1]; // e.g., "localhost:3000"
-        res.send(html);
+        if (req.query.code) {
+            res.redirect('/callback?' +
+                querystring.stringify({
+                    code: req.query.code,
+                    state: req.query.state || null
+                })
+            );
+        }
+        else {
+            res.send(html);
+        }
+
+        
     });
 
     app.get('/login', function(req, res) {
