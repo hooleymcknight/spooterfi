@@ -30,13 +30,31 @@ class Store {
 }
 
 function parseDataFile(filePath, defaults) {
-  // We'll try/catch it in case the file doesn't exist yet, which will be the case on the first application run.
-  // `fs.readFileSync` will return a JSON string which we then parse into a Javascript object
+  // Defaults used to apply only when the file was missing entirely, so any key
+  // added in a newer version stayed undefined forever on an existing install -
+  // and a partial file would crash on launch (windowBounds gets destructured).
+  //
+  // Merging one level deep matters because `settings` is a nested object: a
+  // stored { settings: { fileDirectory } } should keep the default empty
+  // tokens rather than replacing the whole settings object.
+  const isPlainObject = (v) =>
+    v !== null && typeof v === 'object' && !Array.isArray(v);
+
   try {
-    return JSON.parse(fs.readFileSync(filePath));
+    const parsed = JSON.parse(fs.readFileSync(filePath));
+    if (!isPlainObject(parsed)) return { ...defaults };
+
+    const merged = { ...defaults, ...parsed };
+
+    for (const key of Object.keys(defaults)) {
+      if (isPlainObject(defaults[key]) && isPlainObject(parsed[key])) {
+        merged[key] = { ...defaults[key], ...parsed[key] };
+      }
+    }
+    return merged;
   } catch(error) {
-    // if there was some kind of error, return the passed in defaults instead.
-    return defaults;
+    // file doesn't exist yet, or is unreadable - start from defaults.
+    return { ...defaults };
   }
 }
 

@@ -116,7 +116,9 @@ const createWindow = () => {
     tray = new Tray(icon);
 
     tray.setToolTip('Spooterfi');
-    tray.setContextMenu(contextMenu);
+    // tray.setContextMenu(contextMenu);
+    tray.on('right-click', () => tray.popUpContextMenu(contextMenu));
+    tray.on('click', () => tray.popUpContextMenu(contextMenu));
 
     return mainWindow;
 }
@@ -146,7 +148,7 @@ app.on('activate', () => {
     // On OS X it's common to re-create a window in the app when the
     // dock icon is clicked and there are no other windows open.
     if (BrowserWindow.getAllWindows().length === 0) {
-        mainWindow = createWindow(false);
+        mainWindow = createWindow();
     }
 });
 

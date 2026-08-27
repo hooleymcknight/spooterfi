@@ -332,6 +332,11 @@ const connectSpotifyApp = () => {
                     );
                     // res.send('<script>window.close();</script>');
                 } else {
+                    console.error('token exchange failed');
+                    console.log('request error:', error);
+                    console.log('status:', response && response.statusCode);
+                    console.log('body:', body);
+
                     res.redirect('/#' +
                         querystring.stringify({
                             error: 'invalid_token'
