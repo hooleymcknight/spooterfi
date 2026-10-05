@@ -3812,6 +3812,7 @@ version = "0.1.0"
 dependencies = [
  "base64 0.23.1",
  "keyring",
+ "keyring-core",
  "rand",
  "reqwest",
  "serde",
@@ -3821,6 +3822,7 @@ dependencies = [
  "tauri-build",
  "tauri-plugin-oauth",
  "tauri-plugin-opener",
+ "windows-native-keyring-store",
 ]
 
 [[package]]

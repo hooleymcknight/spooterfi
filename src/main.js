@@ -16,13 +16,17 @@ window.addEventListener("DOMContentLoaded", () => {
     //     greet();
     // });
 
-    document.querySelector('button#ping').addEventListener('click', async (e) => {
-        const reply = await invoke("ping");
-        window.alert(reply);
+    document.querySelector('button#connect-spotify').addEventListener('click', async () => {
+        const reply = await invoke("connect_spotify");
+        // window.alert(reply);
     });
 
-    document.querySelector('button#get-playlists').addEventListener('click', async (e) => {
-        const reply = await invoke("pl");
-        console.log(reply);
+    document.querySelector('button#reconnect').addEventListener('click', async () => {
+        const reply = await invoke("reconnect");
     })
+
+    // document.querySelector('button#get-playlists').addEventListener('click', async (e) => {
+    //     const reply = await invoke("pl");
+    //     console.log(reply);
+    // })
 });

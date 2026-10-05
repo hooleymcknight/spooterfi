@@ -3,9 +3,14 @@ use sha2::{Digest, Sha256};
 use tauri_plugin_opener::OpenerExt;
 use tauri_plugin_oauth::OauthConfig;
 use reqwest::Client;
+use keyring_core::{set_default_store, unset_default_store, Entry, Result as KeyringResult};
+use tauri::Manager;
+use std::sync::Mutex;
 
 const CLIENT_ID: &str = "10ceb1c3d434474e9b9e679295692fef";
+const OAUTH_PORT: u16 = 8888;
 const REDIRECT_URI: &str = "http://127.0.0.1:8888/";
+const TOKEN_API: &str = "https://accounts.spotify.com/api/token";
 
 const SCOPES: &[&str] = &[
     "user-read-currently-playing", // track details + progress bar time
@@ -19,6 +24,41 @@ const SCOPES: &[&str] = &[
     "playlist-modify-private", // edit a private playlist
 ];
 
+const KEYRING_SERVICE: &str = "com.hollyn.spooterfi-v2";
+const KEYRING_USERNAME: &str = "spotify-refresh-token";
+
+#[derive(Default)]
+struct TokenState {
+    access_token: String,
+    expires_in: u64,
+}
+
+// *heavy guitar*
+// ... RUN.
+// *heavier guitar*
+
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
+pub fn run() {
+    tauri::Builder::default()
+        .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_oauth::init())
+        .invoke_handler(tauri::generate_handler![greet, connect_spotify])
+        .setup(|app| {
+            let store = windows_native_keyring_store::Store::new().unwrap();
+            set_default_store(store);
+
+            app.manage(Mutex::new(AppState::default()));
+            
+            let _ = check_refresh(app.handle().clone());
+
+            Ok(())
+        })
+        .run(tauri::generate_context!())
+        .expect("error while running tauri application");
+}
+
+// the commands and other such shit
+
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[tauri::command]
 fn greet(name: &str) -> String {
@@ -26,7 +66,7 @@ fn greet(name: &str) -> String {
 }
 
 #[tauri::command]
-fn ping(app: tauri::AppHandle) -> String {
+fn connect_spotify(app: tauri::AppHandle) -> String {
     let pkce_obj = pkce();
     // println!("Challenge: {}", pkce_obj.challenge);
     let auth_url = build_auth_url(&pkce_obj);
@@ -34,7 +74,7 @@ fn ping(app: tauri::AppHandle) -> String {
 
     let config = OauthConfig {
         // Attempt these ports in order to avoid conflicts
-        ports: Some(vec![8888]),
+        ports: Some(vec![OAUTH_PORT]),
         // The HTML string response displayed in the user's browser after auth
         response: Some("OAuth process completed. You can close this window.".into()),
         ..Default::default()
@@ -44,9 +84,10 @@ fn ping(app: tauri::AppHandle) -> String {
     let cloned_verifier = pkce_obj.verifier.clone();
     let cloned_app = app.clone();
 
+    println!("before oauth start with config");
     tauri_plugin_oauth::start_with_config(config, move |url| {
         // Handle the captured OAuth URL (e.g., extract the code)
-        
+        println!("inside of oauth.");
         let parsed_url = reqwest::Url::parse(&url)
         .expect("could not parse url");
         let mut code: Option<String> = None;
@@ -73,16 +114,22 @@ fn ping(app: tauri::AppHandle) -> String {
                     tauri::async_runtime::spawn(async move {
                         let body = exchange_code(&c, &verifier)
                         .await.expect("Token exchange failed.");
-                        let token = serde_json::from_str::<serde_json::Value>(&body).unwrap()["access_token"].as_str().unwrap().to_string();
-                        // println!("{}", body);
-                        println!("token: {}", token);
 
-                        // tauri::async_runtime::spawn(async move {
-                        //     let plbody = get_playlist_info(&token.to_string())
-                        //     .await.expect("playlist fetch failed");
+                        // dbg!(&body.refresh_token);
 
-                        //     println!("{}", plbody);
-                        // });
+                        let access_token = &body.access_token;
+                        // println!("at: {}", access_token);
+                        if let Some(refresh_token) = &body.refresh_token {
+                            // do something with the token
+                            store_tokens(&refresh_token.to_string());
+                        }
+
+                        tauri_plugin_oauth::cancel(OAUTH_PORT);
+
+                        // ------
+                        // GET-PLAYLIST-INFO
+                        // function goes here
+                        // ------
                     });
                 }
                 else {
@@ -102,16 +149,6 @@ fn ping(app: tauri::AppHandle) -> String {
     let opener = app.opener();
     opener.open_url(auth_url, None::<&str>).expect("failed to open browser");
     "pong".to_string()
-}
-
-#[cfg_attr(mobile, tauri::mobile_entry_point)]
-pub fn run() {
-    tauri::Builder::default()
-        .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_oauth::init())
-        .invoke_handler(tauri::generate_handler![greet, ping])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
 }
 
 struct PkceStruct {
@@ -156,85 +193,84 @@ fn build_auth_url(pkce_obj: &PkceStruct) -> String { // Result<reqwest::Url, Box
     url.to_string()
 }
 
-async fn exchange_code(code: &str, verifier: &str) -> Result<String, reqwest::Error> {
+#[derive(Debug, serde::Deserialize)]
+struct ExchangeCode {
+    access_token: String,
+    token_type: String,
+    scope: String,
+    expires_in: u64,
+    refresh_token: Option<String>
+}
+
+async fn exchange_code(code: &str, verifier: &str) -> Result<ExchangeCode, reqwest::Error> {
     let client = Client::new();
     let params = [
-        ("grant_type", "authorization_code"), ("code", code),
-        ("redirect_uri", REDIRECT_URI), ("client_id", CLIENT_ID), ("code_verifier", verifier)
+        ("grant_type", "authorization_code"),
+        ("redirect_uri", REDIRECT_URI), ("client_id", CLIENT_ID),
+        ("code_verifier", verifier), ("code", code),
     ];
 
     let res = client
-        .post("https://accounts.spotify.com/api/token")
+        .post(TOKEN_API)
         .form(&params)
         .send()
         .await?;
 
-    println!("Status: {}", res.status());
-    Ok(res.text().await?)
+    // CHECK THIS STATUS before proceeding, I believe
+    // println!("Status: {}", res.status());
+    Ok(res.json::<ExchangeCode>().await?)
 }
 
-
-/** GET PLAYLISTS **/
-
-async fn get_json(client: &Client, at: &str, url: &str) -> Option<serde_json::Value> {
-    let res = client.get(url).bearer_auth(at).send().await.ok()?;
-    let status = res.status();
-    if !status.is_success() {
-        println!("{} -> {}", status, url);
-        return None;
-    }
-    serde_json::from_str(&res.text().await.ok()?).ok()
-}
-
-async fn get_playlist_info(at: &str) -> Result<String, reqwest::Error> {
+async fn exchange_refresh(refresh_token: &str) -> Result<ExchangeCode, reqwest::Error> {
     let client = Client::new();
-    let mut songs: Vec<serde_json::Value> = Vec::new();
-    let mut seen = std::collections::HashSet::new();
+    let params = [
+        ("grant_type", "refresh_token"),
+        ("refresh_token", refresh_token),
+        ("client_id", CLIENT_ID),
+    ]
 
-    // 1. every page of your playlists
-    let mut playlists: Vec<(String, String)> = Vec::new();
-    let mut next = Some("https://api.spotify.com/v1/me/playlists?limit=50".to_string());
-    while let Some(url) = next {
-        let Some(page) = get_json(&client, at, &url).await else { break };
-        for p in page["items"].as_array().into_iter().flatten() {
-            if let (Some(id), Some(name)) = (p["id"].as_str(), p["name"].as_str()) {
-                playlists.push((id.to_string(), name.to_string()));
-            }
-        }
-        next = page["next"].as_str().map(|s| s.to_string());
+    let res = client
+        .post(TOKEN_API)
+        .form(&params)
+        .send()
+        .await?;
+
+    // CHECK THIS STATUS before proceeding, I believe
+    // println!("Status: {}", res.status());
+    Ok(res.json::<ExchangeCode>().await?)
+}
+
+fn check_refresh(app: tauri::AppHandle) -> KeyringResult<()> {
+    println!("check refresh function");
+    let entry = Entry::new(KEYRING_SERVICE, KEYRING_USERNAME)?;
+
+    // dbg!(entry.get_password());
+    
+    if let Ok(refresh_token) = entry.get_password() {
+        println!("there IS a refresh token");
+        // dbg!(&refresh_token);
+        let body = exchange_refresh(&refresh_token)
+        .await.expect("Token exchange failed.");
+        // return Ok(&body.access_token);
+        // set state here
     }
-    println!("found {} playlists", playlists.len());
-
-    // 2. every page of songs in each playlist
-    for (id, name) in &playlists {
-        let mut next = Some(format!(
-            "https://api.spotify.com/v1/playlists/{}/items?limit=50",
-            id
-        ));
-        while let Some(url) = next {
-            let Some(page) = get_json(&client, at, &url).await else {
-                println!("skipped playlist: {}", name);
-                break;
-            };
-            for entry in page["items"].as_array().into_iter().flatten() {
-                // Spotify renamed "track" to "item"; check both
-                let item = if entry["item"].is_null() { &entry["track"] } else { &entry["item"] };
-                if item["type"].as_str() != Some("track") {
-                    continue; // skips podcast episodes and empty entries
-                }
-                let (Some(title), Some(artist)) =
-                    (item["name"].as_str(), item["artists"][0]["name"].as_str())
-                else {
-                    continue;
-                };
-                if seen.insert((title.to_lowercase(), artist.to_lowercase())) {
-                    songs.push(serde_json::json!({ "title": title, "artist": artist }));
-                }
-            }
-            next = page["next"].as_str().map(|s| s.to_string());
-        }
+    else {
+        println!("no rt");
+        let pong = connect_spotify(app);
+        println!("{}", pong);
+        // return Ok("Login started");
     }
+    //
+    Ok(())
 
-    std::fs::write("../library.json", serde_json::to_string_pretty(&songs).unwrap()).unwrap();
-    Ok(format!("saved {} songs to library.json", songs.len()))
+}
+
+fn store_tokens(refresh_token: &str) -> KeyringResult<()> {
+    let entry = Entry::new(KEYRING_SERVICE, KEYRING_USERNAME)?;
+    println!("after store entry.");
+    // no need to check current refresh or if it even exists.
+    // just set it.
+    entry.set_password(refresh_token);
+    //
+    Ok(())
 }
