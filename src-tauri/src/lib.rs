@@ -4,13 +4,14 @@ use tauri_plugin_opener::OpenerExt;
 use tauri_plugin_oauth::OauthConfig;
 use reqwest::Client;
 use keyring_core::{set_default_store, unset_default_store, Entry, Result as KeyringResult};
-use tauri::Manager;
+use tauri::{Manager, State};
 use std::sync::Mutex;
 
 const CLIENT_ID: &str = "10ceb1c3d434474e9b9e679295692fef";
 const OAUTH_PORT: u16 = 8888;
 const REDIRECT_URI: &str = "http://127.0.0.1:8888/";
 const TOKEN_API: &str = "https://accounts.spotify.com/api/token";
+const NOW_PLAYING: &str = "https://api.spotify.com/v1/me/player/currently-playing";
 
 const SCOPES: &[&str] = &[
     "user-read-currently-playing", // track details + progress bar time
@@ -42,15 +43,19 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_oauth::init())
-        .invoke_handler(tauri::generate_handler![greet, connect_spotify])
+        .invoke_handler(tauri::generate_handler![greet, connect_spotify, get_now_playing])
         .setup(|app| {
             let store = windows_native_keyring_store::Store::new().unwrap();
             set_default_store(store);
 
-            app.manage(Mutex::new(AppState::default()));
+            app.manage(Mutex::new(TokenState::default()));
             
-            let _ = check_refresh(app.handle().clone());
-
+            let handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                let _ = check_refresh(handle)
+                .await.expect("initial check refresh failed");
+            });
+            
             Ok(())
         })
         .run(tauri::generate_context!())
@@ -121,10 +126,10 @@ fn connect_spotify(app: tauri::AppHandle) -> String {
                         // println!("at: {}", access_token);
                         if let Some(refresh_token) = &body.refresh_token {
                             // do something with the token
-                            store_tokens(&refresh_token.to_string());
+                            let _ = store_tokens(&refresh_token.to_string());
                         }
 
-                        tauri_plugin_oauth::cancel(OAUTH_PORT);
+                        let _ = tauri_plugin_oauth::cancel(OAUTH_PORT);
 
                         // ------
                         // GET-PLAYLIST-INFO
@@ -227,7 +232,7 @@ async fn exchange_refresh(refresh_token: &str) -> Result<ExchangeCode, reqwest::
         ("grant_type", "refresh_token"),
         ("refresh_token", refresh_token),
         ("client_id", CLIENT_ID),
-    ]
+    ];
 
     let res = client
         .post(TOKEN_API)
@@ -240,19 +245,28 @@ async fn exchange_refresh(refresh_token: &str) -> Result<ExchangeCode, reqwest::
     Ok(res.json::<ExchangeCode>().await?)
 }
 
-fn check_refresh(app: tauri::AppHandle) -> KeyringResult<()> {
-    println!("check refresh function");
+async fn check_refresh(app: tauri::AppHandle) -> KeyringResult<()> {
+    // println!("check refresh function");
     let entry = Entry::new(KEYRING_SERVICE, KEYRING_USERNAME)?;
 
     // dbg!(entry.get_password());
     
     if let Ok(refresh_token) = entry.get_password() {
-        println!("there IS a refresh token");
-        // dbg!(&refresh_token);
+        // println!("there IS a refresh token");
+        
         let body = exchange_refresh(&refresh_token)
         .await.expect("Token exchange failed.");
-        // return Ok(&body.access_token);
+        
         // set state here
+        let state = app.state::<Mutex<TokenState>>();
+        let mut state = state.lock().unwrap();
+        state.access_token = body.access_token;
+        state.expires_in = body.expires_in; // ====== this may need to be processed before storage
+        // ===== but probably not?
+
+        println!("at?? {:?}", state.access_token);
+
+
     }
     else {
         println!("no rt");
@@ -270,7 +284,32 @@ fn store_tokens(refresh_token: &str) -> KeyringResult<()> {
     println!("after store entry.");
     // no need to check current refresh or if it even exists.
     // just set it.
-    entry.set_password(refresh_token);
+    let _ = entry.set_password(refresh_token);
     //
     Ok(())
+}
+
+// =================== //
+
+// struct NowPlaying {
+   
+// }
+
+#[tauri::command]
+async fn get_now_playing(state: State<'_, Mutex<TokenState>>) -> Result<serde_json::Value, String> {
+    let at = state.lock().unwrap().access_token.clone();
+
+    let client = Client::new();
+    let res = client
+        .get(NOW_PLAYING)
+        .bearer_auth(at)
+        .send()
+        .await.map_err(|e| e.to_string())?;
+
+    // CHECK THIS STATUS before proceeding, I believe
+    println!("Status: {}", res.status());
+    if res.status() == 204 {
+        return Ok(serde_json::Value::Null);
+    }
+    Ok(res.json::<serde_json::Value>().await.map_err(|e| e.to_string())?)
 }

@@ -1,23 +1,30 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="stylesheet" href="styles.css" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Spooterfi v2</title>
-    <script type="module" src="/main.js" defer></script>
-  </head>
+    <head>
+        <meta charset="UTF-8" />
+        <link rel="stylesheet" href="default-styles.css" />
+        <link rel="stylesheet" href="styles.css" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Spooterfi v2</title>
+        <script type="module" src="/main.js" defer></script>
+    </head>
 
-  <body>
-    <main class="container">
-      <h1>Display Spotify Info on Stream</h1>
+    <body>
+        <main class="container">
+        <h1>Display Spotify Info on Stream</h1>
 
-      <button id="connect-spotify">Connect Spotify</button>
-      <button id="reconnect">Reconnect</button>
+        <button id="connect-spotify">Connect Spotify</button>
+        <button id="reconnect">Reconnect</button>
+        <button id="get-now-playing">Get Now Playing</button>
 
-      <div class="row">
+        <hr>
+
+        <div class="song-info">
+            <p>Title: <span id="title"></span></p>
+            <p>Artist: <span id="artist"></span></p>
+        </div>
+
         <!-- <button id="get-playlists">Get Playlists</button> -->
-      </div>
-    </main>
-  </body>
+        </main>
+    </body>
 </html>
