@@ -123,12 +123,15 @@ fn connect_spotify(app: tauri::AppHandle) -> String {
                         // dbg!(&body.refresh_token);
 
                         let access_token = &body.access_token;
-                        // println!("at: {}", access_token);
+                        println!("at: {}", access_token);
                         if let Some(refresh_token) = &body.refresh_token {
                             // do something with the token
                             let _ = store_tokens(&refresh_token.to_string());
+
+                            println!("attempted to store tokens");
                         }
 
+                        println!("cancel");
                         let _ = tauri_plugin_oauth::cancel(OAUTH_PORT);
 
                         // ------

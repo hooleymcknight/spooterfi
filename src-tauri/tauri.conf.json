@@ -15,7 +15,7 @@
         "height": 600,
         "x": 3480,
         "y": 0,
-        "alwaysOnTop": true
+        "alwaysOnTop": false
       }
     ],
     "security": {
